@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Hotel Manager — Dashboard | BookHours</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root{
+      --primary:#0d6efd;
+      --muted:#6c757d;
+      --card-bg: #ffffff;
+      --panel-bg: #f8fafc;
+    }
+    body{
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#eef2ff, #ffffff);
+      color: #0f172a;
+    }
+    /* Layout */
+    .wrap { display:flex; min-height:100vh; gap:24px; padding:24px; }
+    .sidebar {
+      width: 260px;
+      background: var(--card-bg);
+      border-radius:12px;
+      padding:18px;
+      box-shadow: 0 6px 18px rgba(15,23,42,0.06);
+      height: fit-content;
+    }
+    .sidebar h5 { font-weight:700; margin-bottom:12px; }
+    .sidebar .nav-link { color:#0f172a; border-radius:8px; }
+    .sidebar .nav-link.active { background: linear-gradient(90deg,#e6f0ff,#eef8ff); font-weight:600; }
+
+    .main {
+      flex:1;
+    }
+
+    .panel {
+      background: var(--card-bg);
+      border-radius:12px;
+      padding:18px;
+      box-shadow: 0 6px 18px rgba(15,23,42,0.05);
+      margin-bottom:18px;
+    }
+
+    /* Booking cards / table */
+    .booking-card {
+      border-radius:10px;
+      background: linear-gradient(180deg,#fff,#fbfdff);
+      padding:14px;
+      box-shadow: 0 4px 12px rgba(2,6,23,0.04);
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .booking-card:hover { transform: translateY(-4px); box-shadow: 0 8px 26px rgba(2,6,23,0.08); }
+
+    .small-muted { color:var(--muted); font-size:13px; }
+
+    /* badges */
+    .badge-id { background:#eef2ff; color:#1e3a8a; padding:6px 8px; border-radius:6px; text-decoration:none; display:inline-block; margin-right:6px; }
+    .badge-paid { color: #065f46; font-weight:700; }
+    .badge-due { color:#9a3412; font-weight:700; }
+    .badge-partial { color:#b45309; font-weight:700; }
+
+    /* table improvements */
+    table thead th { background:#f1f5f9; border-bottom:1px solid #e6eef8; }
+    table tbody tr td { vertical-align: middle; }
+
+    /* Modal styling */
+    .modal-content { border-radius:12px; }
+
+    /* search + filters */
+    .filters-row .form-control, .filters-row .form-select { min-height:44px; }
+    .filter-chip { background:#eef2ff; padding:6px 10px; border-radius:20px; margin-right:8px; display:inline-block; color:#114e8b; }
+
+    /* responsive */
+    @media (max-width: 900px) {
+      .wrap { flex-direction:column; padding:12px; }
+      .sidebar { width:100%; display:flex; gap:12px; overflow-x:auto; padding:12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid py-3">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div class="d-flex align-items-center gap-3">
+        <a class="text-decoration-none" href="index.html">
+          <h3 class="m-0">Book<span style="color:#ef4444">O</span>Hours</h3>
+        </a>
+        <small class="small-muted">Hotel Manager Dashboard</small>
+      </div>
+      <div>
+        <button class="btn btn-outline-secondary me-2" onclick="location.href='index.html'">Open site</button>
+        <button class="btn btn-danger" id="logoutBtn" onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <!-- Sidebar (left) -->
+      <aside class="sidebar">
+        <h5>Manager Menu</h5>
+        <nav class="nav flex-column" id="leftTabs">
+          <a class="nav-link active" data-target="hotel-info" href="#" onclick="activateTab(event)">Hotel Info / Facility</a>
+          <a class="nav-link" data-target="manage-booking" href="#" onclick="activateTab(event)">Manage Bookings</a>
+          <a class="nav-link" data-target="update-gallery" href="#" onclick="activateTab(event)">Update Gallery</a>
+          <a class="nav-link" data-target="booking-records" href="#" onclick="activateTab(event)">Booking Records</a>
+        </nav>
+      </aside>
+
+      <!-- Main content (right/bigger) -->
+      <main class="main">
+        <!-- HOTEL INFO (default tab) -->
+        <section id="hotel-info" class="panel tab-pane active">
+          <div class="d-flex align-items-start justify-content-between mb-3">
+            <div>
+              <h4 class="mb-1">Hotel Info</h4>
+              <p class="small-muted mb-0">Overview — current availability and next free times</p>
+            </div>
+            <div>
+              <button class="btn btn-outline-primary" id="editHotelBtn">Edit Hotel Info</button>
+            </div>
+          </div>
+
+          <!-- Availability panels -->
+          <div class="row g-3 mb-3" id="availabilityPanels">
+            <!-- will be injected dynamically -->
+          </div>
+        </section>
+
+        <!-- Manage Bookings -->
+        <section id="manage-booking" class="panel tab-pane" style="display:none;">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+              <h4 class="mb-0">Manage Bookings</h4>
+              <div class="small-muted">Edit, confirm or delete bookings quickly</div>
+            </div>
+            <div>
+              <button class="btn btn-outline-secondary" onclick="loadBookings()">Refresh</button>
+              <button class="btn btn-primary" onclick="openAddBookingModal()">+ Add Booking</button>
+            </div>
+          </div>
+
+          <!-- table -->
+          <div class="table-responsive">
+            <table class="table table-borderless align-middle">
+              <thead>
+                <tr>
+                  <th>Booking ID</th>
+                  <th>Guests</th>
+                  <th>Phone</th>
+                  <th>Room</th>
+                  <th>Type</th>
+                  <th>Check-in</th>
+                  <th>Check-out</th>
+                  <th>Payment</th>
+                  <th>ID Proofs</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="manageRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Update Gallery -->
+        <section id="update-gallery" class="panel tab-pane" style="display:none;">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+              <h4 class="mb-0">Update Gallery</h4>
+              <div class="small-muted">Upload photos for this hotel</div>
+            </div>
+          </div>
+
+          <form id="galleryForm" enctype="multipart/form-data" class="mb-3">
+            <div class="mb-2">
+              <input type="file" name="photos" id="galleryPhotos" multiple accept="image/*" class="form-control">
+            </div>
+            <div><button class="btn btn-primary">Upload</button></div>
+          </form>
+          <div id="galleryPreview" class="d-flex gap-2 flex-wrap"></div>
+        </section>
+
+        <!-- Booking Records -->
+        <section id="booking-records" class="panel tab-pane" style="display:none;">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+              <h4 class="mb-0">Booking Records</h4>
+              <div class="small-muted">Search, filter, export and review booking history</div>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-secondary" onclick="loadBookings()">Refresh</button>
+              <button class="btn btn-success" id="exportFilteredBtn">Export Filtered</button>
+              <button class="btn btn-outline-primary" id="exportAllBtn">Export All</button>
+            </div>
+          </div>
+
+          <!-- Filters -->
+          <div class="filters-row panel mb-3">
+            <div class="row g-2 align-items-center">
+              <div class="col-md-5">
+                <input id="searchInput" class="form-control" placeholder="Search by Booking ID, guest name or phone">
+              </div>
+              <div class="col-auto small-muted">From</div>
+              <div class="col-auto"><input id="fromDate" type="date" class="form-control"></div>
+              <div class="col-auto small-muted">To</div>
+              <div class="col-auto"><input id="toDate" type="date" class="form-control"></div>
+              <div class="col-auto">
+                <button class="btn btn-primary" onclick="applyFilters()">Apply</button>
+                <button class="btn btn-link" onclick="resetFilters()">Reset</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results (table) -->
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Booking ID</th>
+                  <th>Guests</th>
+                  <th>Phone</th>
+                  <th>Room</th>
+                  <th>Check-in</th>
+                  <th>Check-out</th>
+                  <th>Payment</th>
+                  <th>ID Proofs</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="recordsTbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Edit/Add Booking Modal -->
+  <div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editModalTitle">Edit Booking</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editForm">
+            <input type="hidden" id="editBookingId">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label">Guest name</label>
+                <input id="editName" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Phone</label>
+                <input id="editPhone" class="form-control" required>
+              </div>
+            </div>
+
+            <div class="row g-2 mt-2">
+              <div class="col-md-6">
+                <label class="form-label">Check-in</label>
+                <input id="editCheckin" type="datetime-local" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Check-out</label>
+                <input id="editCheckout" type="datetime-local" class="form-control" required>
+              </div>
+            </div>
+
+            <div class="row g-2 mt-2">
+              <div class="col-md-4">
+                <label class="form-label">Room No</label>
+                <input id="editRoom" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Room Type</label>
+                <input id="editRoomType" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Payment Status</label>
+                <select id="editPayment" class="form-select">
+                  <option>pending</option>
+                  <option>partially paid</option>
+                  <option>paid</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mt-3 d-flex justify-content-end gap-2">
+              <button type="submit" class="btn btn-primary">Save</button>
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content p-3">
+        <div class="modal-body">
+          <h5>Delete booking?</h5>
+          <p class="small-muted">This action cannot be undone.</p>
+          <div class="d-flex justify-content-end gap-2">
+            <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+            <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toastContainer" style="position: fixed; top:18px; right:18px; z-index: 2000;"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/app.js"></script>
+
+  <script>
+    // ------------- AUTHENTICATION CHECK -------------
+    function getCurrentUser(){ 
+      try{ 
+        return JSON.parse(localStorage.getItem('currentUser')); 
+      }catch(e){ 
+        return null; 
+      } 
+    }
+    
+    // Check if user is logged in
+    if (!getCurrentUser()) {
+      alert('Please login to access the dashboard');
+      window.location.href = 'login.html';
+    }
+
+    // ------------- CONFIG -------------
+    // API_BASE is already defined in app.js (loaded above)
+    // No need to redeclare it - just use it directly
+    let bookings = [];          // all bookings
+    let filteredBookings = [];  // filtered view
+    let bookingToDelete = null;
+
+    // ------------- UI Helpers -------------
+    function showToast(msg, type='success') {
+      const id = 't' + Date.now();
+      const el = document.createElement('div');
+      el.className = `toast align-items-center text-bg-${type==='success'?'success':'danger'} border-0 show`;
+      el.style.minWidth = '220px';
+      el.id = id;
+      el.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div>
+        <button class="btn-close btn-close-white me-2 m-auto" onclick="document.getElementById('${id}').remove()"></button></div>`;
+      document.getElementById('toastContainer').appendChild(el);
+      setTimeout(()=> el.remove(), 3500);
+    }
+
+    // Make activateTab available globally for onclick handlers
+    window.activateTab = function(e){
+      e.preventDefault();
+      const target = e.currentTarget.getAttribute('data-target');
+      document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+      document.getElementById(target).style.display = 'block';
+      document.querySelectorAll('#leftTabs .nav-link').forEach(a => a.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+    };
+
+    // ------------- Data Load -------------
+    async function loadBookings(){
+      try {
+        const res = await fetch(API_BASE + '/booking');
+        if(!res.ok) throw new Error('Failed to fetch bookings');
+        bookings = await res.json();
+        // ensure bookings have bookingId field (fallback)
+        bookings.forEach(b => { if(!b.bookingId) b.bookingId = b.id || ('BK'+(Date.now()+Math.random()).toString().slice(2,9)); });
+        filteredBookings = bookings.slice();
+        renderManageTable();
+        renderRecordsTable(filteredBookings);
+        renderAvailability();
+      } catch (err) {
+        console.error(err);
+        showToast('Cannot load bookings from server', 'danger');
+      }
+    }
+
+    // ------------- Rendering -------------
+    function renderManageTable(){
+      const tbody = document.getElementById('manageRows');
+      tbody.innerHTML = '';
+      bookings.forEach(b=>{
+        const id = b.bookingId;
+        const guests = (b.guests && b.guests.length) ? b.guests.join(', ') : (b.name || '');
+        const docs = (b.documents || []).map(u=>`<a href="${u}" target="_blank" class="badge-id">ID</a>`).join(' ');
+        tbody.insertAdjacentHTML('beforeend',
+          `<tr data-id="${id}">
+            <td>${id}</td>
+            <td>${escapeHtml(guests)}</td>
+            <td>${escapeHtml(b.phone||'')}</td>
+            <td>${escapeHtml(b.roomNumber||'')}</td>
+            <td>${escapeHtml(b.roomType||'')}</td>
+            <td>${niceDate(b.checkin)}</td>
+            <td>${niceDate(b.checkout)}</td>
+            <td>${paymentBadge(b.paymentStatus)}</td>
+            <td>${docs}</td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-primary me-1" onclick="openEdit('${id}')">Edit</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete('${id}')">Delete</button>
+            </td>
+          </tr>`);
+      });
+    }
+
+    function renderRecordsTable(list){
+      const tbody = document.getElementById('recordsTbody');
+      tbody.innerHTML = '';
+      list.forEach(b=>{
+        const id = b.bookingId;
+        const guests = (b.guests && b.guests.length) ? b.guests.join(', ') : (b.name || '');
+        const docs = (b.documents || []).map(u=>`<a href="${u}" target="_blank" class="badge-id">ID</a>`).join(' ');
+        tbody.insertAdjacentHTML('beforeend',
+          `<tr>
+            <td>${id}</td>
+            <td>${escapeHtml(guests)}</td>
+            <td>${escapeHtml(b.phone||'')}</td>
+            <td>${escapeHtml(b.roomNumber||'')}</td>
+            <td>${niceDate(b.checkin)}</td>
+            <td>${niceDate(b.checkout)}</td>
+            <td>${paymentBadge(b.paymentStatus)}</td>
+            <td>${docs}</td>
+            <td class="text-end">
+              <button class="btn btn-sm btn-outline-primary" onclick="openEdit('${id}')">Edit</button>
+            </td>
+          </tr>`);
+      });
+    }
+
+    function renderAvailability(){
+      const container = document.getElementById('availabilityPanels');
+      container.innerHTML = '';
+      // derive available and booked rooms for 'today'
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const booked = bookings.filter(b=>{
+        if(!b.checkin || !b.checkout) return false;
+        const ci = new Date(b.checkin);
+        const co = new Date(b.checkout);
+        return ci <= now && co >= now;
+      });
+
+      const bookedCount = booked.length;
+      const totalRooms = 30; // demo: replace with real hotel room count if available
+      const availableCount = Math.max(0, totalRooms - bookedCount);
+
+      container.insertAdjacentHTML('beforeend',
+        `<div class="col-md-4">
+          <div class="booking-card p-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <div class="small-muted">Total rooms</div>
+                <div class="fs-4 fw-bold">${totalRooms}</div>
+              </div>
+              <div class="text-end">
+                <small class="small-muted">Available now</small>
+                <div class="fs-4 text-success fw-bold">${availableCount}</div>
+              </div>
+            </div>
+          </div>
+        </div>`);
+
+      container.insertAdjacentHTML('beforeend',
+        `<div class="col-md-4">
+          <div class="booking-card p-3">
+            <div class="small-muted">Currently booked</div>
+            <div class="fs-5 fw-bold">${bookedCount} rooms</div>
+            <div class="mt-2 small-muted">Next free room times shown in Manage Bookings</div>
+          </div>
+        </div>`);
+
+      // upcoming releases / sample
+      container.insertAdjacentHTML('beforeend',
+        `<div class="col-md-4">
+          <div class="booking-card p-3">
+            <div class="small-muted">Today</div>
+            <div class="fs-5 fw-bold">${today.toLocaleDateString()}</div>
+            <div class="mt-2 small-muted">Keep an eye on peak hours</div>
+          </div>
+        </div>`);
+    }
+
+    // ------------- Utilities -------------
+    function niceDate(v){
+      if(!v) return '-';
+      const d = new Date(v);
+      if(isNaN(d)) return v;
+      return d.toLocaleString();
+    }
+    function paymentBadge(status){
+      if(!status) return '-';
+      status = (''+status).toLowerCase();
+      if(status.includes('paid')) return `<span class="badge-paid">Paid</span>`;
+      if(status.includes('partial')) return `<span class="badge-partial">Partially Paid</span>`;
+      return `<span class="badge-due">Pending</span>`;
+    }
+    function escapeHtml(s){
+      if(!s) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ------------- Filters -------------
+    function applyFilters(){
+      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      const from = document.getElementById('fromDate').value;
+      const to = document.getElementById('toDate').value;
+
+      filteredBookings = bookings.filter(b=>{
+        const hay = (b.bookingId + ' ' + (b.name||'') + ' ' + (Array.isArray(b.guests)?b.guests.join(' '):'') + ' ' + (b.phone||'')).toLowerCase();
+        if(q && !hay.includes(q)) return false;
+        if(from && b.checkin && new Date(b.checkin) < new Date(from)) return false;
+        if(to && b.checkout && new Date(b.checkout) > new Date(to + 'T23:59:59')) return false;
+        return true;
+      });
+
+      renderRecordsTable(filteredBookings);
+    }
+
+    function resetFilters(){
+      document.getElementById('searchInput').value = '';
+      document.getElementById('fromDate').value = '';
+      document.getElementById('toDate').value = '';
+      filteredBookings = bookings.slice();
+      renderRecordsTable(filteredBookings);
+    }
+
+    // ------------- Export functions (CSV) -------------
+    function exportToCSV(arr, filename = 'bookings.csv'){
+      if(!arr || !arr.length) { showToast('No rows to export', 'danger'); return; }
+      const keys = Object.keys(arr[0]);
+      const rows = [keys.join(',')].concat(arr.map(r => keys.map(k => `"${String(r[k]||'').replace(/"/g,'""')}"`).join(',')));
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('exportFilteredBtn').addEventListener('click', ()=>{
+      const data = filteredBookings.map(b => ({
+        bookingId: b.bookingId,
+        name: Array.isArray(b.guests)?b.guests.join('; '):(b.name||''),
+        phone: b.phone || '',
+        roomNumber: b.roomNumber || '',
+        roomType: b.roomType || '',
+        checkin: b.checkin || '',
+        checkout: b.checkout || '',
+        paymentStatus: b.paymentStatus || ''
+      }));
+      exportToCSV(data, 'filtered_bookings.csv');
+    });
+
+    document.getElementById('exportAllBtn').addEventListener('click', ()=>{
+      const data = bookings.map(b => ({
+        bookingId: b.bookingId,
+        name: Array.isArray(b.guests)?b.guests.join('; '):(b.name||''),
+        phone: b.phone || '',
+        roomNumber: b.roomNumber || '',
+        roomType: b.roomType || '',
+        checkin: b.checkin || '',
+        checkout: b.checkout || '',
+        paymentStatus: b.paymentStatus || ''
+      }));
+      exportToCSV(data, 'all_bookings.csv');
+    });
+
+    // ------------- Edit / Delete -------------
+    function openEdit(bookingId){
+      const b = bookings.find(x => x.bookingId === bookingId);
+      if(!b) return showToast('Booking not found','danger');
+      document.getElementById('editBookingId').value = b.bookingId;
+      document.getElementById('editName').value = b.name || (Array.isArray(b.guests)?b.guests.join(', '):'');
+      document.getElementById('editPhone').value = b.phone || '';
+      // format to yyyy-mm-ddThh:mm for datetime-local input
+      document.getElementById('editCheckin').value = b.checkin ? toInputDatetime(b.checkin) : '';
+      document.getElementById('editCheckout').value = b.checkout ? toInputDatetime(b.checkout) : '';
+      document.getElementById('editRoom').value = b.roomNumber || '';
+      document.getElementById('editRoomType').value = b.roomType || '';
+      document.getElementById('editPayment').value = b.paymentStatus || 'pending';
+      const modal = new bootstrap.Modal(document.getElementById('editModal'));
+      modal.show();
+    }
+
+    function toInputDatetime(v){
+      const d = new Date(v);
+      if(isNaN(d)) return '';
+      // local ISO without seconds
+      const off = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - off*60000);
+      return local.toISOString().slice(0,16);
+    }
+
+    document.getElementById('editForm').addEventListener('submit', async (ev)=>{
+      ev.preventDefault();
+      const id = document.getElementById('editBookingId').value;
+      const payload = {
+        bookingId: id,
+        name: document.getElementById('editName').value,
+        phone: document.getElementById('editPhone').value,
+        checkin: document.getElementById('editCheckin').value,
+        checkout: document.getElementById('editCheckout').value,
+        roomNumber: document.getElementById('editRoom').value,
+        roomType: document.getElementById('editRoomType').value,
+        paymentStatus: document.getElementById('editPayment').value
+      };
+      try {
+        const res = await fetch(API_BASE + '/booking/' + encodeURIComponent(id), {
+          method: 'PUT',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if(!res.ok) throw new Error('Edit failed');
+        // update local copy
+        const idx = bookings.findIndex(b=>b.bookingId===id);
+        if(idx>-1) bookings[idx] = {...bookings[idx], ...payload};
+        renderManageTable();
+        renderRecordsTable(filteredBookings);
+        showToast('Booking updated');
+        bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to update booking', 'danger');
+      }
+    });
+
+    function confirmDelete(bookingId){
+      bookingToDelete = bookingId;
+      const delModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+      delModal.show();
+    }
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', async ()=>{
+      if(!bookingToDelete) return;
+      try {
+        const res = await fetch(API_BASE + '/booking/' + encodeURIComponent(bookingToDelete), { method: 'DELETE' });
+        if(!res.ok) throw new Error('Delete failed');
+        bookings = bookings.filter(b => b.bookingId !== bookingToDelete);
+        filteredBookings = filteredBookings.filter(b => b.bookingId !== bookingToDelete);
+        renderManageTable();
+        renderRecordsTable(filteredBookings);
+        showToast('Booking deleted');
+        bookingToDelete = null;
+        bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to delete booking', 'danger');
+      }
+    });
+
+    // ------------- Add Booking (quick) -------------
+    function openAddBookingModal(){
+      document.getElementById('editModalTitle').textContent = 'Add Booking';
+      document.getElementById('editForm').reset();
+      document.getElementById('editBookingId').value = 'BK' + Date.now();
+      const modal = new bootstrap.Modal(document.getElementById('editModal'));
+      modal.show();
+    }
+
+    // when Add booking saved, the editForm submit will call PUT — server should upsert based on bookingId
+    // ------------- Helpers -------------
+    // attach search input
+    document.getElementById('searchInput').addEventListener('input', function(){ applyFilters(); });
+
+    // ------------- Logout Function -------------
+    function logout(){
+      localStorage.removeItem('currentUser');
+      window.location.href = 'login.html';
+    }
+
+    // load on startup
+    document.addEventListener('DOMContentLoaded', ()=>{
+      // Display current user info if available
+      const user = getCurrentUser();
+      if (user) {
+        console.log('Logged in as:', user.name || user.email);
+      }
+      loadBookings();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "bookinghours",
+  "version": "2.0.0",
+  "description": "BookingHours - Hourly Hotel Booking Platform",
+  "main": "server.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "mongoose": "^8.0.0",
+    "cloudinary": "^1.41.0",
+    "busboy": "^1.6.0"
+  },
+  "devDependencies": {
+    "vercel": "^34.0.0"
+  },
+  "engines": {
+    "node": ">=18.x"
+  }
+}
+
