@@ -101,7 +101,119 @@ export default function HotelPage() {
               prop.hotelAmenities && prop.hotelAmenities.length > 0
                 ? prop.hotelAmenities
                 : base.hotelAmenities || base.amenities || [];
-            const roomAmenities = prop.roomAmenities || base.roomAmenities || [];
+            
+            // Collect room amenities from property (same logic as backend sync)
+            const roomAmenitiesSet = new Set<string>();
+            
+            // Add global room amenities (legacy)
+            (prop.roomAmenities || []).forEach((a: string) => {
+              if (a && typeof a === 'string') roomAmenitiesSet.add(a.trim());
+            });
+            
+            // Collect from overnightRooms and hourlyRooms
+            const collectFromRooms = (rooms?: any[]) => {
+              rooms?.forEach((room) => {
+                const amenities = room?.roomAmenities;
+                if (!amenities) return;
+                
+                // Handle array format (legacy)
+                if (Array.isArray(amenities)) {
+                  amenities.forEach((a: string) => {
+                    if (typeof a === 'string') roomAmenitiesSet.add(a.trim());
+                  });
+                }
+                // Handle object format: { Normal: ['Mineral Water', 'Hot Water'], Deluxe: [...] }
+                else if (amenities && typeof amenities === 'object' && !Array.isArray(amenities)) {
+                  Object.values(amenities).forEach((value) => {
+                    // If value is an array of amenity names
+                    if (Array.isArray(value)) {
+                      value.forEach((a: string) => {
+                        if (typeof a === 'string') roomAmenitiesSet.add(a.trim());
+                      });
+                    }
+                    // If value is a string (single amenity)
+                    else if (typeof value === 'string') {
+                      roomAmenitiesSet.add(value.trim());
+                    }
+                  });
+                  
+                  // Also check if keys are amenity names with boolean values (legacy checkbox format)
+                  Object.entries(amenities).forEach(([key, value]) => {
+                    if (value === true || value === 'on' || value === 'true' || value === 1) {
+                      roomAmenitiesSet.add(key.trim());
+                    }
+                  });
+                }
+              });
+            };
+            
+            collectFromRooms(prop.overnightRooms);
+            collectFromRooms(prop.hourlyRooms);
+            
+            const roomAmenities = Array.from(roomAmenitiesSet);
+            console.log('Collected room amenities from property:', roomAmenities);
+            
+            // Extract room amenities per room type and attach to hourlyRooms
+            const enhancedHourlyRooms = base.hourlyRooms ? [...base.hourlyRooms] : [];
+            const collectRoomAmenitiesByType = (rooms?: any[]) => {
+              rooms?.forEach((room) => {
+                const roomCategory = room?.category;
+                if (!roomCategory) return;
+
+                const category = String(roomCategory).trim();
+                const amenities = room?.roomAmenities;
+                
+                if (!amenities) return;
+
+                // Find or create room type entry in hourlyRooms
+                let roomType = enhancedHourlyRooms.find(rt => rt.category === category);
+                if (!roomType) {
+                  roomType = { category };
+                  enhancedHourlyRooms.push(roomType);
+                }
+                
+                // Initialize roomAmenities array if not exists
+                if (!roomType.roomAmenities) {
+                  roomType.roomAmenities = [];
+                }
+
+                // Handle array format (legacy)
+                if (Array.isArray(amenities)) {
+                  amenities.forEach((a: string) => {
+                    if (typeof a === 'string' && !roomType.roomAmenities!.includes(a.trim())) {
+                      roomType.roomAmenities!.push(a.trim());
+                    }
+                  });
+                }
+                // Handle object format: { Normal: ['Mineral Water', 'Hot Water'], Deluxe: [...] }
+                else if (amenities && typeof amenities === 'object' && !Array.isArray(amenities)) {
+                  // If the object has the same category key, extract its amenities
+                  if (amenities[category] && Array.isArray(amenities[category])) {
+                    (amenities[category] as string[]).forEach((a: string) => {
+                      if (typeof a === 'string' && !roomType.roomAmenities!.includes(a.trim())) {
+                        roomType.roomAmenities!.push(a.trim());
+                      }
+                    });
+                  }
+                  // Otherwise, extract all amenities from all categories (fallback)
+                  else {
+                    Object.values(amenities).forEach((value) => {
+                      if (Array.isArray(value)) {
+                        value.forEach((a: string) => {
+                          if (typeof a === 'string' && !roomType.roomAmenities!.includes(a.trim())) {
+                            roomType.roomAmenities!.push(a.trim());
+                          }
+                        });
+                      }
+                    });
+                  }
+                }
+              });
+            };
+
+            collectRoomAmenitiesByType(prop.overnightRooms);
+            collectRoomAmenitiesByType(prop.hourlyRooms);
+            
             const placesOfInterest =
               prop.placesOfInterest && prop.placesOfInterest.length > 0
                 ? prop.placesOfInterest
@@ -109,7 +221,8 @@ export default function HotelPage() {
             return {
               ...base,
               hotelAmenities,
-              roomAmenities,
+              roomAmenities: roomAmenities.length > 0 ? roomAmenities : (base.roomAmenities || []),
+              hourlyRooms: enhancedHourlyRooms.length > 0 ? enhancedHourlyRooms : base.hourlyRooms,
               placesOfInterest,
               latitude: prop.latitude ?? base.latitude,
               longitude: prop.longitude ?? base.longitude,
@@ -233,10 +346,18 @@ export default function HotelPage() {
 
     // If hourlyRooms (from property packages) are available, derive room types from there
     if (hotel.hourlyRooms && hotel.hourlyRooms.length > 0) {
-      return hotel.hourlyRooms
-        .filter((r) => (r as any).category)
+      console.log('Hotel hourlyRooms data:', JSON.stringify(hotel.hourlyRooms, null, 2));
+      
+      const extractedRoomTypes = hotel.hourlyRooms
+        .filter((r) => {
+          const hasCategory = !!(r as any).category;
+          if (!hasCategory) {
+            console.warn('Room type missing category:', r);
+          }
+          return hasCategory;
+        })
         .map((r, index) => {
-          const category = (r as any).category as string;
+          const category = String((r as any).category).trim();
           
           // Use hourlyCharge as the base price for display (or fallback to hotel price)
           // The actual rate used for calculation will be determined based on booking duration
@@ -258,6 +379,9 @@ export default function HotelPage() {
             description: undefined,
           } as RoomType;
         });
+      
+      console.log('Extracted room types for dropdown:', extractedRoomTypes);
+      return extractedRoomTypes;
     }
 
     // Fallback to legacy hard-coded room types
@@ -287,8 +411,20 @@ export default function HotelPage() {
 
   // Get the selected room's rates from hotel.hourlyRooms
   const selectedRoomData = hotel?.hourlyRooms?.find(
-    (r: any) => r.category && r.category.toLowerCase().replace(/\s+/g, '-') === selectedRoomType
+    (r: any) => {
+      if (!r.category) return false;
+      const roomCategoryId = String(r.category).toLowerCase().replace(/\s+/g, '-');
+      return roomCategoryId === selectedRoomType;
+    }
   ) as any;
+  
+  console.log('Selected room type ID:', selectedRoomType);
+  console.log('Available room categories:', hotel?.hourlyRooms?.map((r: any) => ({
+    category: r.category,
+    id: r.category ? String(r.category).toLowerCase().replace(/\s+/g, '-') : 'no-category',
+    amenities: r.roomAmenities || []
+  })));
+  console.log('Selected room data:', selectedRoomData);
 
   // Determine if this is an hourly booking (less than 24 hours)
   const isHourlyBooking = hotel?.availableForHourly && totalHours < 24;
@@ -464,7 +600,19 @@ export default function HotelPage() {
       ? hotel.hotelAmenities
       : hotel.amenities || [];
 
-  const roomAmenitiesList = hotel.roomAmenities || [];
+  // Room amenities: Get amenities for the selected room type
+  const selectedRoomAmenities = selectedRoomData?.roomAmenities || [];
+  
+  // Fallback: use combined amenities if no room-specific amenities found
+  const roomAmenitiesList = selectedRoomAmenities.length > 0
+    ? selectedRoomAmenities
+    : (hotel.roomAmenities && hotel.roomAmenities.length > 0)
+      ? hotel.roomAmenities
+      : [];
+  
+  console.log('Selected room type:', selectedRoomType);
+  console.log('Selected room data:', selectedRoomData);
+  console.log('Room amenities to display:', roomAmenitiesList);
 
   const placesOfInterestList =
     hotel.placesOfInterest && hotel.placesOfInterest.length > 0
@@ -864,22 +1012,29 @@ export default function HotelPage() {
               )}
             </div>
 
-            {/* Room Amenities */}
+            {/* Room Amenities - Dynamic based on selected room type */}
             <div className="card p-4 mb-4">
               <h5 className="fw-bold mb-3">Room Amenities</h5>
               {roomAmenitiesList.length > 0 ? (
-                <div className="d-flex flex-wrap gap-2">
-                  {roomAmenitiesList.map((amenity, idx) => (
-                    <span
-                      key={`${amenity}-${idx}`}
-                      className="badge rounded-pill text-bg-light"
-                    >
-                      {amenity}
-                    </span>
-                  ))}
+                <div>
+                  {selectedRoomData && selectedRoomData.category && (
+                    <p className="text-muted mb-2 small">
+                      Showing amenities for <strong>{selectedRoomData.category}</strong> room
+                    </p>
+                  )}
+                  <div className="d-flex flex-wrap gap-2">
+                    {roomAmenitiesList.map((amenity, idx) => (
+                      <span
+                        key={`${amenity}-${idx}`}
+                        className="badge rounded-pill text-bg-light"
+                      >
+                        {amenity}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               ) : (
-                <p className="text-muted mb-0">Room amenities not specified.</p>
+                <p className="text-muted mb-0">Room amenities not specified for this room type.</p>
               )}
             </div>
 

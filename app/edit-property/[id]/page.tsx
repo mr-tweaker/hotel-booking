@@ -128,6 +128,11 @@ export default function EditPropertyPage() {
         setOvernightRooms(normalizedOvernightRooms);
         // Normalize hourly rooms to ensure roomAmenities structure exists
         // Normalize packages to ensure charges structure exists
+        console.log('[Edit Property] Loading packages from property:', {
+          packagesCount: prop.packages?.length || 0,
+          packages: prop.packages,
+        });
+        
         const normalizedPackages = (prop.packages || []).map((pkg: any) => {
           // If package has checkInCharge/hourlyCharge but no charges object, migrate to charges structure
           if (pkg.category && (pkg.checkInCharge || pkg.hourlyCharge) && !pkg.charges) {
@@ -155,6 +160,17 @@ export default function EditPropertyPage() {
           }
           return pkg;
         });
+        
+        console.log('[Edit Property] Normalized packages:', {
+          packagesCount: normalizedPackages.length,
+          packages: normalizedPackages.map(pkg => ({
+            duration: pkg.duration,
+            category: pkg.category,
+            hourlyCharge: pkg.hourlyCharge,
+            checkInCharge: pkg.checkInCharge,
+          })),
+        });
+        
         setPackages(normalizedPackages);
         setBookingTypeCategories((prop as any).bookingTypeCategories || []);
         
@@ -238,6 +254,28 @@ export default function EditPropertyPage() {
 
     try {
       // Convert FormData to JSON for PUT request
+      console.log('[Edit Property] Submitting packages:', {
+        packagesCount: packages.length,
+        packages: packages.map(pkg => ({
+          duration: pkg.duration,
+          category: pkg.category,
+          hourlyCharge: pkg.hourlyCharge,
+          checkInCharge: pkg.checkInCharge,
+        })),
+      });
+
+      console.log('[Edit Property] Submitting overnightRooms:', overnightRooms.map((room: any, idx: number) => ({
+        index: idx,
+        category: room.category,
+        roomAmenities: room.roomAmenities,
+        roomAmenitiesKeys: room.roomAmenities && typeof room.roomAmenities === 'object' && !Array.isArray(room.roomAmenities) 
+          ? Object.keys(room.roomAmenities) 
+          : 'N/A',
+        roomAmenitiesForCategory: room.roomAmenities && typeof room.roomAmenities === 'object' && !Array.isArray(room.roomAmenities) && room.category
+          ? room.roomAmenities[room.category]
+          : 'N/A',
+      })));
+
       const updateData: Partial<Property> = {
         propertyName: formDataObj.get('propertyName') as string,
         propertyType: formDataObj.get('propertyType') as string,

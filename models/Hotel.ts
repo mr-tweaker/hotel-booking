@@ -26,6 +26,12 @@ export interface IHotel {
     additionalGuestRate?: number;
     standardOccupancy?: number;
     maxOccupancy?: number;
+    hourlyCharge?: number;
+    checkInCharge?: number;
+    dayCharge?: number;
+    nightCharge?: number;
+    charge24Hours?: number;
+    roomAmenities?: string[];
   }>;
   isActive: boolean;
   createdAt?: Date;

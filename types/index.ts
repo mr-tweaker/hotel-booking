@@ -155,6 +155,8 @@ export interface Hotel {
     dayCharge?: number;
     nightCharge?: number;
     charge24Hours?: number;
+    // Room amenities per room type
+    roomAmenities?: string[];
   }>;
 }
 

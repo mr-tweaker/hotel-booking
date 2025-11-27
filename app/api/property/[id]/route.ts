@@ -38,6 +38,21 @@ export async function PUT(
     const { id } = params;
     const updateData = await request.json();
 
+    console.log(`[PUT /api/property/${id}] Received update data:`, {
+      packagesCount: updateData.packages?.length || 0,
+      packages: updateData.packages,
+      bookingTypeCategories: updateData.bookingTypeCategories,
+      overnightRoomsCount: updateData.overnightRooms?.length || 0,
+      overnightRooms: updateData.overnightRooms?.map((room: any, idx: number) => ({
+        index: idx,
+        category: room.category,
+        roomAmenities: room.roomAmenities,
+        roomAmenitiesKeys: room.roomAmenities && typeof room.roomAmenities === 'object' && !Array.isArray(room.roomAmenities) 
+          ? Object.keys(room.roomAmenities) 
+          : 'N/A',
+      })),
+    });
+
     const result = await propertyService.updateProperty(id, updateData);
 
     if (!result.success) {
