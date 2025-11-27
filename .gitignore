@@ -1,34 +1,35 @@
-# Dependencies
-node_modules/
-package-lock.json
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
 
-# Environment variables
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
 .env
-.env.local
-.env.production
 
-# Vercel
+# vercel
 .vercel
 
-# Logs
-*.log
-npm-debug.log*
-
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Old backend files (keep for reference)
-Backend/data/
-Backend/uploads/
-
-# Build outputs
-dist/
-build/
+# typescript
+*.tsbuildinfo
+next-env.d.ts
 

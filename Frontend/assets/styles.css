@@ -1,8 +1,0 @@
-:root{ --primary:#0d6efd; --muted:#6b7280; }
-body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:#f3f6fb; color:#0f172a; }
-.navbar .logo-brand { font-weight:700; font-size:1.1rem; color:#0d47a1; }
-.hero { background: linear-gradient(90deg,#eef2ff, #ffffff); border-radius:12px; padding:36px 0; }
-.sidebar { background:#fff; border-radius:12px; padding:16px; box-shadow:0 6px 18px rgba(2,6,23,0.04); }
-.card { border-radius:12px; }
-.badge-amen { background:#eef2ff; color:#075985; padding:6px 8px; border-radius:8px; margin-right:6px; display:inline-block; font-size:13px; }
-a.badge-id { background:#eef2ff; color:#075985; padding:5px 8px; border-radius:6px; text-decoration:none; }
