@@ -231,16 +231,25 @@ export default function HotelPage() {
   const roomTypes: RoomType[] = (() => {
     if (!hotel) return [];
 
-    // If hourlyRooms (from property) are available, derive room types from there
+    // If hourlyRooms (from property packages) are available, derive room types from there
     if (hotel.hourlyRooms && hotel.hourlyRooms.length > 0) {
       return hotel.hourlyRooms
         .filter((r) => (r as any).category)
         .map((r, index) => {
           const category = (r as any).category as string;
-          const baseRate =
-            typeof (r as any).rate3h === 'number' && (r as any).rate3h > 0
-              ? ((r as any).rate3h as number) / 3
-              : hotel.price;
+          
+          // Use hourlyCharge as the base price for display (or fallback to hotel price)
+          // The actual rate used for calculation will be determined based on booking duration
+          let baseRate = hotel.price; // Default fallback
+          
+          // Prefer hourlyCharge if available (for hourly bookings)
+          if (typeof (r as any).hourlyCharge === 'number' && (r as any).hourlyCharge > 0) {
+            baseRate = (r as any).hourlyCharge;
+          } else if (typeof (r as any).dayCharge === 'number' && (r as any).dayCharge > 0) {
+            baseRate = (r as any).dayCharge;
+          } else if (typeof (r as any).checkInCharge === 'number' && (r as any).checkInCharge > 0) {
+            baseRate = (r as any).checkInCharge;
+          }
 
           return {
             id: category.toLowerCase().replace(/\s+/g, '-'),
@@ -276,9 +285,43 @@ export default function HotelPage() {
 
   const selectedRoom = roomTypes.find((r) => r.id === selectedRoomType) || roomTypes[0];
 
+  // Get the selected room's rates from hotel.hourlyRooms
+  const selectedRoomData = hotel?.hourlyRooms?.find(
+    (r: any) => r.category && r.category.toLowerCase().replace(/\s+/g, '-') === selectedRoomType
+  ) as any;
+
+  // Determine if this is an hourly booking (less than 24 hours)
+  const isHourlyBooking = hotel?.availableForHourly && totalHours < 24;
+
   // Calculate pricing (recalculate when dates/times change)
-  const hourlyRate = selectedRoom?.price || hotel?.price || 0;
-  const checkInCharge = hotel?.checkInCharge || 500;
+  // For hourly bookings, use hourlyCharge; otherwise use the base price
+  let hourlyRate = selectedRoom?.price || hotel?.price || 0;
+  let checkInCharge = hotel?.checkInCharge || 500;
+
+  // Override with room-specific rates if available
+  if (selectedRoomData) {
+    if (isHourlyBooking) {
+      // For hourly bookings, use hourlyCharge and checkInCharge from the room
+      if (typeof selectedRoomData.hourlyCharge === 'number' && selectedRoomData.hourlyCharge > 0) {
+        hourlyRate = selectedRoomData.hourlyCharge;
+      }
+      if (typeof selectedRoomData.checkInCharge === 'number' && selectedRoomData.checkInCharge > 0) {
+        checkInCharge = selectedRoomData.checkInCharge;
+      }
+    } else {
+      // For day/night bookings, use the appropriate charge
+      if (typeof selectedRoomData.dayCharge === 'number' && selectedRoomData.dayCharge > 0) {
+        hourlyRate = selectedRoomData.dayCharge;
+        checkInCharge = 0; // Day charge includes everything
+      } else if (typeof selectedRoomData.nightCharge === 'number' && selectedRoomData.nightCharge > 0) {
+        hourlyRate = selectedRoomData.nightCharge;
+        checkInCharge = 0; // Night charge includes everything
+      } else if (typeof selectedRoomData.charge24Hours === 'number' && selectedRoomData.charge24Hours > 0) {
+        hourlyRate = selectedRoomData.charge24Hours;
+        checkInCharge = 0; // 24-hour charge includes everything
+      }
+    }
+  }
   const totalHours = Math.max(1, hours); // Ensure at least 1 hour
   const billableHourlyBlocks = Math.max(0, totalHours - 1); // First hour covered by check-in charge
   const hourlyCharges = hourlyRate * billableHourlyBlocks * editableRooms; // Multiply by number of rooms

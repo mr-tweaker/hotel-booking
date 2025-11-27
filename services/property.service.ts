@@ -235,6 +235,63 @@ export class PropertyService {
     return Array.from(set);
   }
 
+  private extractRoomTypesFromPackages(property: IProperty): Array<{
+    category: string;
+    hourlyCharge?: number;
+    checkInCharge?: number;
+    dayCharge?: number;
+    nightCharge?: number;
+    charge24Hours?: number;
+  }> {
+    const roomTypesMap = new Map<string, {
+      category: string;
+      hourlyCharge?: number;
+      checkInCharge?: number;
+      dayCharge?: number;
+      nightCharge?: number;
+      charge24Hours?: number;
+    }>();
+
+    // Extract room types from packages
+    (property.packages || []).forEach((pkg) => {
+      if (!pkg.category) return;
+
+      const category = pkg.category;
+      const duration = pkg.duration || '';
+
+      // Initialize room type if not exists
+      if (!roomTypesMap.has(category)) {
+        roomTypesMap.set(category, { category });
+      }
+
+      const roomType = roomTypesMap.get(category)!;
+
+      // Store rates based on duration
+      if (duration === 'Hourly') {
+        if (pkg.hourlyCharge !== undefined && pkg.hourlyCharge !== null && pkg.hourlyCharge !== '') {
+          roomType.hourlyCharge = Number(pkg.hourlyCharge);
+        }
+        if (pkg.checkInCharge !== undefined && pkg.checkInCharge !== null && pkg.checkInCharge !== '') {
+          roomType.checkInCharge = Number(pkg.checkInCharge);
+        }
+      } else if (duration === 'Day') {
+        if (pkg.checkInCharge !== undefined && pkg.checkInCharge !== null && pkg.checkInCharge !== '') {
+          roomType.dayCharge = Number(pkg.checkInCharge);
+        }
+      } else if (duration === 'Night') {
+        if (pkg.checkInCharge !== undefined && pkg.checkInCharge !== null && pkg.checkInCharge !== '') {
+          roomType.nightCharge = Number(pkg.checkInCharge);
+        }
+      } else if (duration === '24 hours') {
+        if (pkg.checkInCharge !== undefined && pkg.checkInCharge !== null && pkg.checkInCharge !== '') {
+          roomType.charge24Hours = Number(pkg.checkInCharge);
+        }
+      }
+    });
+
+    return Array.from(roomTypesMap.values());
+  }
+
   private async syncHotelListing(property: IProperty) {
     try {
       if (!property.listingId) return;
@@ -252,6 +309,9 @@ export class PropertyService {
         const bookingCategories = property.bookingTypeCategories || [];
         const availableForHourly = bookingCategories.includes('Hourly');
         const availableForDay = bookingCategories.includes('Day');
+
+        // Extract room types from packages
+        const roomTypes = this.extractRoomTypesFromPackages(property);
 
         const imageUrls = (property.propertyImages || [])
           .map((img) => {
@@ -287,7 +347,7 @@ export class PropertyService {
               : property.propertyType === 'Homestay'
               ? 'Homestay'
               : 'Hotel',
-          hourlyRooms: property.hourlyRooms,
+          hourlyRooms: roomTypes.length > 0 ? roomTypes : property.hourlyRooms,
           placesOfInterest: property.placesOfInterest,
           latitude: property.latitude,
           longitude: property.longitude,

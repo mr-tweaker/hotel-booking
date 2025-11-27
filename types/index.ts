@@ -140,6 +140,7 @@ export interface Hotel {
   availableForDay?: boolean;
   hourlyRooms?: Array<{
     category: string;
+    // Legacy rates (for backward compatibility)
     rate3h?: number;
     rate6h?: number;
     rate9h?: number;
@@ -148,6 +149,12 @@ export interface Hotel {
     additionalGuestRate?: number;
     standardOccupancy?: number;
     maxOccupancy?: number;
+    // New rates from packages
+    hourlyCharge?: number;
+    checkInCharge?: number;
+    dayCharge?: number;
+    nightCharge?: number;
+    charge24Hours?: number;
   }>;
 }
 
